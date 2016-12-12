@@ -57,15 +57,16 @@ import com.google.protobuf.util.JsonTestProto.TestDuration;
 import com.google.protobuf.util.JsonTestProto.TestFieldMask;
 import com.google.protobuf.util.JsonTestProto.TestMap;
 import com.google.protobuf.util.JsonTestProto.TestOneof;
+import com.google.protobuf.util.JsonTestProto.TestRecursive;
 import com.google.protobuf.util.JsonTestProto.TestStruct;
 import com.google.protobuf.util.JsonTestProto.TestTimestamp;
 import com.google.protobuf.util.JsonTestProto.TestWrappers;
-
-import junit.framework.TestCase;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.HashMap;
+import java.util.Map;
+import junit.framework.TestCase;
 
 public class JsonFormatTest extends TestCase {
   private void setAllFields(TestAllTypes.Builder builder) {
@@ -218,7 +219,9 @@ public class JsonFormatTest extends TestCase {
 
     TestMap.Builder mapBuilder = TestMap.newBuilder();
     mapBuilder.putInt32ToEnumMapValue(1, 0);
-    mapBuilder.getMutableInt32ToEnumMapValue().put(2, 12345);
+    Map<Integer, Integer> mapWithInvalidValues = new HashMap<Integer, Integer>();
+    mapWithInvalidValues.put(2, 12345);
+    mapBuilder.putAllInt32ToEnumMapValue(mapWithInvalidValues);
     TestMap mapMessage = mapBuilder.build();
     assertEquals(
         "{\n"
@@ -819,6 +822,15 @@ public class JsonFormatTest extends TestCase {
         printer.print(message));
     assertRoundTripEquals(message, registry);
 
+    TestAny messageWithDefaultAnyValue =
+        TestAny.newBuilder().setAnyValue(Any.getDefaultInstance()).build();
+    assertEquals(
+        "{\n"
+            + "  \"anyValue\": {}\n"
+            + "}",
+        printer.print(messageWithDefaultAnyValue));
+    assertRoundTripEquals(messageWithDefaultAnyValue, registry);
+
     // Well-known types have a special formatting when embedded in Any.
     //
     // 1. Any in Any.
@@ -952,6 +964,8 @@ public class JsonFormatTest extends TestCase {
             + "}",
         printer.print(anyMessage));
     assertRoundTripEquals(anyMessage, registry);
+
+    // 7. Value (number type) in Any
     Value.Builder valueBuilder = Value.newBuilder();
     valueBuilder.setNumberValue(1);
     anyMessage = Any.pack(valueBuilder.build());
@@ -962,6 +976,95 @@ public class JsonFormatTest extends TestCase {
             + "}",
         printer.print(anyMessage));
     assertRoundTripEquals(anyMessage, registry);
+
+    // 8. Value (null type) in Any
+    anyMessage = Any.pack(Value.newBuilder().setNullValue(NullValue.NULL_VALUE).build());
+    assertEquals(
+        "{\n"
+            + "  \"@type\": \"type.googleapis.com/google.protobuf.Value\",\n"
+            + "  \"value\": null\n"
+            + "}",
+        printer.print(anyMessage));
+    assertRoundTripEquals(anyMessage, registry);
+  }
+
+  public void testAnyInMaps() throws Exception {
+    JsonFormat.TypeRegistry registry =
+        JsonFormat.TypeRegistry.newBuilder().add(TestAllTypes.getDescriptor()).build();
+    JsonFormat.Printer printer = JsonFormat.printer().usingTypeRegistry(registry);
+
+    TestAny.Builder testAny = TestAny.newBuilder();
+    testAny.putAnyMap("int32_wrapper", Any.pack(Int32Value.newBuilder().setValue(123).build()));
+    testAny.putAnyMap("int64_wrapper", Any.pack(Int64Value.newBuilder().setValue(456).build()));
+    testAny.putAnyMap("timestamp", Any.pack(Timestamps.parse("1969-12-31T23:59:59Z")));
+    testAny.putAnyMap("duration", Any.pack(Durations.parse("12345.1s")));
+    testAny.putAnyMap("field_mask", Any.pack(FieldMaskUtil.fromString("foo.bar,baz")));
+    Value numberValue = Value.newBuilder().setNumberValue(1.125).build();
+    Struct.Builder struct = Struct.newBuilder();
+    struct.putFields("number", numberValue);
+    testAny.putAnyMap("struct", Any.pack(struct.build()));
+    Value nullValue = Value.newBuilder().setNullValue(NullValue.NULL_VALUE).build();
+    testAny.putAnyMap(
+        "list_value",
+        Any.pack(ListValue.newBuilder().addValues(numberValue).addValues(nullValue).build()));
+    testAny.putAnyMap("number_value", Any.pack(numberValue));
+    testAny.putAnyMap("any_value_number", Any.pack(Any.pack(numberValue)));
+    testAny.putAnyMap("any_value_default", Any.pack(Any.getDefaultInstance()));
+    testAny.putAnyMap("default", Any.getDefaultInstance());
+
+    assertEquals(
+        "{\n"
+            + "  \"anyMap\": {\n"
+            + "    \"int32_wrapper\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Int32Value\",\n"
+            + "      \"value\": 123\n"
+            + "    },\n"
+            + "    \"int64_wrapper\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Int64Value\",\n"
+            + "      \"value\": \"456\"\n"
+            + "    },\n"
+            + "    \"timestamp\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Timestamp\",\n"
+            + "      \"value\": \"1969-12-31T23:59:59Z\"\n"
+            + "    },\n"
+            + "    \"duration\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Duration\",\n"
+            + "      \"value\": \"12345.100s\"\n"
+            + "    },\n"
+            + "    \"field_mask\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.FieldMask\",\n"
+            + "      \"value\": \"foo.bar,baz\"\n"
+            + "    },\n"
+            + "    \"struct\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Struct\",\n"
+            + "      \"value\": {\n"
+            + "        \"number\": 1.125\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"list_value\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.ListValue\",\n"
+            + "      \"value\": [1.125, null]\n"
+            + "    },\n"
+            + "    \"number_value\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Value\",\n"
+            + "      \"value\": 1.125\n"
+            + "    },\n"
+            + "    \"any_value_number\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Any\",\n"
+            + "      \"value\": {\n"
+            + "        \"@type\": \"type.googleapis.com/google.protobuf.Value\",\n"
+            + "        \"value\": 1.125\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"any_value_default\": {\n"
+            + "      \"@type\": \"type.googleapis.com/google.protobuf.Any\",\n"
+            + "      \"value\": {}\n"
+            + "    },\n"
+            + "    \"default\": {}\n"
+            + "  }\n"
+            + "}",
+        printer.print(testAny.build()));
+    assertRoundTripEquals(testAny.build(), registry);
   }
 
   public void testParserMissingTypeUrl() throws Exception {
@@ -1016,8 +1119,10 @@ public class JsonFormatTest extends TestCase {
 
   public void testParserRejectInvalidBase64() throws Exception {
     assertRejects("optionalBytes", "!@#$");
-    // We use standard BASE64 with paddings.
-    assertRejects("optionalBytes", "AQI");
+  }
+
+  public void testParserAcceptBase64Variants() throws Exception {
+    assertAccepts("optionalBytes", "AQI");
   }
 
   public void testParserRejectInvalidEnumValue() throws Exception {
@@ -1028,6 +1133,23 @@ public class JsonFormatTest extends TestCase {
     } catch (InvalidProtocolBufferException e) {
       // Expected.
     }
+  }
+
+  public void testParserUnknownFields() throws Exception {
+    try {
+      TestAllTypes.Builder builder = TestAllTypes.newBuilder();
+      String json = "{\n" + "  \"unknownField\": \"XXX\"\n" + "}";
+      JsonFormat.parser().merge(json, builder);
+      fail("Exception is expected.");
+    } catch (InvalidProtocolBufferException e) {
+      // Expected.
+    }
+  }
+
+  public void testParserIgnoringUnknownFields() throws Exception {
+    TestAllTypes.Builder builder = TestAllTypes.newBuilder();
+    String json = "{\n" + "  \"unknownField\": \"XXX\"\n" + "}";
+    JsonFormat.parser().ignoringUnknownFields().merge(json, builder);
   }
 
   public void testCustomJsonName() throws Exception {
@@ -1145,6 +1267,23 @@ public class JsonFormatTest extends TestCase {
             + "  }\n"
             + "}",
         JsonFormat.printer().includingDefaultValueFields().print(mapMessage));
+
+    TestOneof oneofMessage = TestOneof.getDefaultInstance();
+    assertEquals("{\n}", JsonFormat.printer().print(oneofMessage));
+    assertEquals("{\n}", JsonFormat.printer().includingDefaultValueFields().print(oneofMessage));
+
+    oneofMessage = TestOneof.newBuilder().setOneofInt32(42).build();
+    assertEquals("{\n  \"oneofInt32\": 42\n}",
+        JsonFormat.printer().print(oneofMessage));
+    assertEquals("{\n  \"oneofInt32\": 42\n}",
+        JsonFormat.printer().includingDefaultValueFields().print(oneofMessage));
+
+    TestOneof.Builder oneofBuilder = TestOneof.newBuilder();
+    mergeFromJson("{\n" + "  \"oneofNullValue\": null \n" + "}", oneofBuilder);
+    oneofMessage = oneofBuilder.build();
+    assertEquals("{\n  \"oneofNullValue\": null\n}", JsonFormat.printer().print(oneofMessage));
+    assertEquals("{\n  \"oneofNullValue\": null\n}",
+        JsonFormat.printer().includingDefaultValueFields().print(oneofMessage));
   }
 
   public void testPreservingProtoFieldNames() throws Exception {
@@ -1241,5 +1380,35 @@ public class JsonFormatTest extends TestCase {
         builder);
     Any any = builder.build();
     assertEquals(0, any.getValue().size());
+  }
+
+  public void testRecursionLimit() throws Exception {
+    String input =
+        "{\n"
+            + "  \"nested\": {\n"
+            + "    \"nested\": {\n"
+            + "      \"nested\": {\n"
+            + "        \"nested\": {\n"
+            + "          \"value\": 1234\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}\n";
+
+    JsonFormat.Parser parser = JsonFormat.parser();
+    TestRecursive.Builder builder = TestRecursive.newBuilder();
+    parser.merge(input, builder);
+    TestRecursive message = builder.build();
+    assertEquals(1234, message.getNested().getNested().getNested().getNested().getValue());
+
+    parser = JsonFormat.parser().usingRecursionLimit(3);
+    builder = TestRecursive.newBuilder();
+    try {
+      parser.merge(input, builder);
+      fail("Exception is expected.");
+    } catch (InvalidProtocolBufferException e) {
+      // Expected.
+    }
   }
 }

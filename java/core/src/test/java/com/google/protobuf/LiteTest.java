@@ -35,7 +35,6 @@ import static java.util.Collections.singletonList;
 
 import com.google.protobuf.UnittestImportLite.ImportEnumLite;
 import com.google.protobuf.UnittestImportPublicLite.PublicImportMessageLite;
-import com.google.protobuf.UnittestLite;
 import com.google.protobuf.UnittestLite.ForeignEnumLite;
 import com.google.protobuf.UnittestLite.ForeignMessageLite;
 import com.google.protobuf.UnittestLite.TestAllExtensionsLite;
@@ -46,20 +45,14 @@ import com.google.protobuf.UnittestLite.TestAllTypesLite.OneofFieldCase;
 import com.google.protobuf.UnittestLite.TestAllTypesLite.OptionalGroup;
 import com.google.protobuf.UnittestLite.TestAllTypesLite.RepeatedGroup;
 import com.google.protobuf.UnittestLite.TestAllTypesLiteOrBuilder;
+import com.google.protobuf.UnittestLite.TestHugeFieldNumbersLite;
 import com.google.protobuf.UnittestLite.TestNestedExtensionLite;
 import protobuf_unittest.lite_equals_and_hash.LiteEqualsAndHash.Bar;
 import protobuf_unittest.lite_equals_and_hash.LiteEqualsAndHash.BarPrime;
 import protobuf_unittest.lite_equals_and_hash.LiteEqualsAndHash.Foo;
 import protobuf_unittest.lite_equals_and_hash.LiteEqualsAndHash.TestOneofEquals;
 import protobuf_unittest.lite_equals_and_hash.LiteEqualsAndHash.TestRecursiveOneof;
-
 import junit.framework.TestCase;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.NotSerializableException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 
 /**
  * Test lite runtime.
@@ -138,7 +131,6 @@ public class LiteTest extends TestCase {
     assertEquals(7, message2.getExtension(
         UnittestLite.optionalNestedMessageExtensionLite).getBb());
   }
-  
   
   public void testClone() {
     TestAllTypesLite.Builder expected = TestAllTypesLite.newBuilder()
@@ -1433,6 +1425,12 @@ public class LiteTest extends TestCase {
     assertToStringEquals("", TestAllTypesLite.getDefaultInstance());
   }
 
+  public void testToStringScalarFieldsSuffixedWithList() throws Exception {
+    assertToStringEquals("deceptively_named_list: 7", TestAllTypesLite.newBuilder()
+        .setDeceptivelyNamedList(7)
+        .build());
+  }
+
   public void testToStringPrimitives() throws Exception {
     TestAllTypesLite proto = TestAllTypesLite.newBuilder()
         .setOptionalInt32(1)
@@ -2242,6 +2240,25 @@ public class LiteTest extends TestCase {
     
     assertFalse(mine.equals(other));
     assertFalse(other.equals(mine));
+  }
+
+  public void testHugeFieldNumbers() throws InvalidProtocolBufferException {
+    TestHugeFieldNumbersLite message =
+        TestHugeFieldNumbersLite.newBuilder()
+            .setOptionalInt32(1)
+            .addRepeatedInt32(2)
+            .setOptionalEnum(ForeignEnumLite.FOREIGN_LITE_FOO)
+            .setOptionalString("xyz")
+            .setOptionalMessage(ForeignMessageLite.newBuilder().setC(3).build())
+            .build();
+
+    TestHugeFieldNumbersLite parsedMessage =
+        TestHugeFieldNumbersLite.parseFrom(message.toByteArray());
+    assertEquals(1, parsedMessage.getOptionalInt32());
+    assertEquals(2, parsedMessage.getRepeatedInt32(0));
+    assertEquals(ForeignEnumLite.FOREIGN_LITE_FOO, parsedMessage.getOptionalEnum());
+    assertEquals("xyz", parsedMessage.getOptionalString());
+    assertEquals(3, parsedMessage.getOptionalMessage().getC());
   }
 
   private void assertEqualsAndHashCodeAreFalse(Object o1, Object o2) {

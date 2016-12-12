@@ -183,12 +183,15 @@ module BasicTest
 
     def test_hash
       m1 = TestMessage.new(:optional_int32 => 42)
-      m2 = TestMessage.new(:optional_int32 => 102)
+      m2 = TestMessage.new(:optional_int32 => 102, repeated_string: ['please', 'work', 'ok?'])
+      m3 = TestMessage.new(:optional_int32 => 102, repeated_string: ['please', 'work', 'ok?'])
       assert m1.hash != 0
       assert m2.hash != 0
+      assert m3.hash != 0
       # relying on the randomness here -- if hash function changes and we are
       # unlucky enough to get a collision, then change the values above.
       assert m1.hash != m2.hash
+      assert_equal m2.hash, m3.hash
     end
 
     def test_unknown_field_errors
@@ -1177,6 +1180,18 @@ module BasicTest
 
       m2 = MapMessage.decode_json(MapMessage.encode_json(m))
       assert m == m2
+    end
+
+    def test_comparison_with_arbitrary_object
+      assert MapMessage.new != nil
+    end
+
+    def test_respond_to
+      # This test fails with JRuby 1.7.23, likely because of an old JRuby bug.
+      return if RUBY_PLATFORM == "java"
+      msg = MapMessage.new
+      assert msg.respond_to?(:map_string_int32)
+      assert !msg.respond_to?(:bacon)
     end
   end
 end

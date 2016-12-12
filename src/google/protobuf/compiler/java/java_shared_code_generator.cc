@@ -59,8 +59,8 @@ SharedCodeGenerator::~SharedCodeGenerator() {
 }
 
 void SharedCodeGenerator::Generate(GeneratorContext* context,
-                                   vector<string>* file_list,
-                                   vector<string>* annotation_file_list) {
+                                   std::vector<string>* file_list,
+                                   std::vector<string>* annotation_file_list) {
   string java_package = FileJavaPackage(file_);
   string package_dir = JavaPackageToDir(java_package);
 
@@ -119,7 +119,6 @@ void SharedCodeGenerator::Generate(GeneratorContext* context,
   }
 }
 
-
 void SharedCodeGenerator::GenerateDescriptors(io::Printer* printer) {
   // Embed the descriptor.  We simply serialize the entire FileDescriptorProto
   // and embed it as a string literal, which is parsed and built into real
@@ -133,7 +132,6 @@ void SharedCodeGenerator::GenerateDescriptors(io::Printer* printer) {
   // embedded raw, which is what we want.
   FileDescriptorProto file_proto;
   file_->CopyTo(&file_proto);
-
 
   string file_data;
   file_proto.SerializeToString(&file_data);
@@ -181,7 +179,7 @@ void SharedCodeGenerator::GenerateDescriptors(io::Printer* printer) {
 
   // -----------------------------------------------------------------
   // Find out all dependencies.
-  vector<pair<string, string> > dependencies;
+  std::vector<std::pair<string, string> > dependencies;
   for (int i = 0; i < file_->dependency_count(); i++) {
     if (ShouldIncludeDependency(file_->dependency(i))) {
       string filename = file_->dependency(i)->name();

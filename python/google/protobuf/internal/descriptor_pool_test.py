@@ -119,6 +119,7 @@ class DescriptorPoolTest(unittest.TestCase):
     self.assertEqual('google.protobuf.python.internal.Factory1Message',
                      msg1.full_name)
     self.assertEqual(None, msg1.containing_type)
+    self.assertFalse(msg1.has_options)
 
     nested_msg1 = msg1.nested_types[0]
     self.assertEqual('NestedFactory1Message', nested_msg1.name)
@@ -202,6 +203,7 @@ class DescriptorPoolTest(unittest.TestCase):
     self.assertIsInstance(enum1, descriptor.EnumDescriptor)
     self.assertEqual(0, enum1.values_by_name['FACTORY_1_VALUE_0'].number)
     self.assertEqual(1, enum1.values_by_name['FACTORY_1_VALUE_1'].number)
+    self.assertFalse(enum1.has_options)
 
     nested_enum1 = self.pool.FindEnumTypeByName(
         'google.protobuf.python.internal.Factory1Message.NestedFactory1Enum')
@@ -234,6 +236,8 @@ class DescriptorPoolTest(unittest.TestCase):
         'google.protobuf.python.internal.Factory1Message.list_value')
     self.assertEqual(field.name, 'list_value')
     self.assertEqual(field.label, field.LABEL_REPEATED)
+    self.assertFalse(field.has_options)
+
     with self.assertRaises(KeyError):
       self.pool.FindFieldByName('Does not exist')
 
@@ -249,6 +253,53 @@ class DescriptorPoolTest(unittest.TestCase):
     self.assertEqual(extension.number, 1002)
     with self.assertRaises(KeyError):
       self.pool.FindFieldByName('Does not exist')
+
+  def testFindAllExtensions(self):
+    factory1_message = self.pool.FindMessageTypeByName(
+        'google.protobuf.python.internal.Factory1Message')
+    factory2_message = self.pool.FindMessageTypeByName(
+        'google.protobuf.python.internal.Factory2Message')
+    # An extension defined in a message.
+    one_more_field = factory2_message.extensions_by_name['one_more_field']
+    self.pool.AddExtensionDescriptor(one_more_field)
+    # An extension defined at file scope.
+    factory_test2 = self.pool.FindFileByName(
+        'google/protobuf/internal/factory_test2.proto')
+    another_field = factory_test2.extensions_by_name['another_field']
+    self.pool.AddExtensionDescriptor(another_field)
+
+    extensions = self.pool.FindAllExtensions(factory1_message)
+    expected_extension_numbers = set([one_more_field, another_field])
+    self.assertEqual(expected_extension_numbers, set(extensions))
+    # Verify that mutating the returned list does not affect the pool.
+    extensions.append('unexpected_element')
+    # Get the extensions again, the returned value does not contain the
+    # 'unexpected_element'.
+    extensions = self.pool.FindAllExtensions(factory1_message)
+    self.assertEqual(expected_extension_numbers, set(extensions))
+
+  def testFindExtensionByNumber(self):
+    factory1_message = self.pool.FindMessageTypeByName(
+        'google.protobuf.python.internal.Factory1Message')
+    factory2_message = self.pool.FindMessageTypeByName(
+        'google.protobuf.python.internal.Factory2Message')
+    # An extension defined in a message.
+    one_more_field = factory2_message.extensions_by_name['one_more_field']
+    self.pool.AddExtensionDescriptor(one_more_field)
+    # An extension defined at file scope.
+    factory_test2 = self.pool.FindFileByName(
+        'google/protobuf/internal/factory_test2.proto')
+    another_field = factory_test2.extensions_by_name['another_field']
+    self.pool.AddExtensionDescriptor(another_field)
+
+    # An extension defined in a message.
+    extension = self.pool.FindExtensionByNumber(factory1_message, 1001)
+    self.assertEqual(extension.name, 'one_more_field')
+    # An extension defined at file scope.
+    extension = self.pool.FindExtensionByNumber(factory1_message, 1002)
+    self.assertEqual(extension.name, 'another_field')
+    with self.assertRaises(KeyError):
+      extension = self.pool.FindExtensionByNumber(factory1_message, 1234567)
 
   def testExtensionsAreNotFields(self):
     with self.assertRaises(KeyError):
@@ -448,6 +499,7 @@ class EnumField(object):
     test.assertTrue(field_desc.has_default_value)
     test.assertEqual(enum_desc.values_by_name[self.default_value].number,
                      field_desc.default_value)
+    test.assertFalse(enum_desc.values_by_name[self.default_value].has_options)
     test.assertEqual(msg_desc, field_desc.containing_type)
     test.assertEqual(enum_desc, field_desc.enum_type)
 

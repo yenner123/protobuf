@@ -103,7 +103,10 @@ jspb.Map.prototype.toArray = function() {
       var m = this.map_;
       for (var p in m) {
         if (Object.prototype.hasOwnProperty.call(m, p)) {
-          m[p].valueWrapper.toArray();
+          var valueWrapper = /** @type {?jspb.Message} */ (m[p].valueWrapper);
+          if (valueWrapper) {
+            valueWrapper.toArray();
+          }
         }
       }
     }
@@ -124,6 +127,58 @@ jspb.Map.prototype.toArray = function() {
     this.arrClean = true;
   }
   return this.arr_;
+};
+
+
+/**
+ * Returns the map formatted as an array of key-value pairs, suitable for the
+ * toObject() form of a message.
+ *
+ * @param {boolean=} includeInstance Whether to include the JSPB instance for
+ *    transitional soy proto support: http://goto/soy-param-migration
+ * @param {!function((boolean|undefined),!V):!Object=} valueToObject
+ *    The static toObject() method, if V is a message type.
+ * @return {!Array<!Array<!Object>>}
+ */
+jspb.Map.prototype.toObject = function(includeInstance, valueToObject) {
+  var rawArray = this.toArray();
+  var entries = [];
+  for (var i = 0; i < rawArray.length; i++) {
+    var entry = this.map_[rawArray[i][0].toString()];
+    this.wrapEntry_(entry);
+    var valueWrapper = /** @type {!V|undefined} */ (entry.valueWrapper);
+    if (valueWrapper) {
+      goog.asserts.assert(valueToObject);
+      entries.push([entry.key, valueToObject(includeInstance, valueWrapper)]);
+    } else {
+      entries.push([entry.key, entry.value]);
+    }
+  }
+  return entries;
+};
+
+
+/**
+ * Returns a Map from the given array of key-value pairs when the values are of
+ * message type. The values in the array must match the format returned by their
+ * message type's toObject() method.
+ *
+ * @template K, V
+ * @param {!Array<!Array<!Object>>} entries
+ * @param {!function(new:V)|function(new:V,?)} valueCtor
+ *    The constructor for type V.
+ * @param {!function(!Object):V} valueFromObject
+ *    The fromObject function for type V.
+ * @return {!jspb.Map<K, V>}
+ */
+jspb.Map.fromObject = function(entries, valueCtor, valueFromObject) {
+  var result = new jspb.Map([], valueCtor);
+  for (var i = 0; i < entries.length; i++) {
+    var key = entries[i][0];
+    var value = valueFromObject(entries[i][1]);
+    result.set(key, value);
+  }
+  return result;
 };
 
 
@@ -190,7 +245,7 @@ jspb.Map.prototype.del = function(key) {
  * to help out Angular 1.x users.  Still evaluating whether this is the best
  * option.
  *
- * @return {!Array<K|V>}
+ * @return {!Array<!Array<K|V>>}
  */
 jspb.Map.prototype.getEntryList = function() {
   var entries = [];
@@ -343,13 +398,13 @@ jspb.Map.prototype.has = function(key) {
  * number.
  * @param {number} fieldNumber
  * @param {!jspb.BinaryWriter} writer
- * @param {function(this:jspb.BinaryWriter,number,K)=} keyWriterFn
+ * @param {!function(this:jspb.BinaryWriter,number,K)} keyWriterFn
  *     The method on BinaryWriter that writes type K to the stream.
- * @param {function(this:jspb.BinaryWriter,number,V)|
- *         function(this:jspb.BinaryReader,V,?)=} valueWriterFn
+ * @param {!function(this:jspb.BinaryWriter,number,V)|
+ *          function(this:jspb.BinaryReader,V,?)} valueWriterFn
  *     The method on BinaryWriter that writes type V to the stream.  May be
  *     writeMessage, in which case the second callback arg form is used.
- * @param {?function(V,!jspb.BinaryWriter)=} opt_valueWriterCallback
+ * @param {function(V,!jspb.BinaryWriter)=} opt_valueWriterCallback
  *    The BinaryWriter serialization callback for type V, if V is a message
  *    type.
  */
@@ -376,14 +431,15 @@ jspb.Map.prototype.serializeBinary = function(
  * Read one key/value message from the given BinaryReader. Compatible as the
  * `reader` callback parameter to jspb.BinaryReader.readMessage, to be called
  * when a key/value pair submessage is encountered.
+ * @template K, V
  * @param {!jspb.Map} map
  * @param {!jspb.BinaryReader} reader
- * @param {function(this:jspb.BinaryReader):K=} keyReaderFn
+ * @param {!function(this:jspb.BinaryReader):K} keyReaderFn
  *     The method on BinaryReader that reads type K from the stream.
  *
- * @param {function(this:jspb.BinaryReader):V|
- *         function(this:jspb.BinaryReader,V,
- *                  function(V,!jspb.BinaryReader))=} valueReaderFn
+ * @param {!function(this:jspb.BinaryReader):V|
+ *          function(this:jspb.BinaryReader,V,
+ *                  function(V,!jspb.BinaryReader))} valueReaderFn
  *    The method on BinaryReader that reads type V from the stream. May be
  *    readMessage, in which case the second callback arg form is used.
  *

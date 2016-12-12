@@ -11,7 +11,9 @@ goog.require('jspb.BinaryWriter');
 goog.require('jspb.ExtensionFieldBinaryInfo');
 goog.require('jspb.ExtensionFieldInfo');
 goog.require('jspb.Message');
+goog.require('jspb.Map');
 
+exports.Map = jspb.Map;
 exports.Message = jspb.Message;
 exports.BinaryReader = jspb.BinaryReader;
 exports.BinaryWriter = jspb.BinaryWriter;
@@ -22,3 +24,4 @@ exports.ExtensionFieldBinaryInfo = jspb.ExtensionFieldBinaryInfo;
 exports.exportSymbol = goog.exportSymbol;
 exports.inherits = goog.inherits;
 exports.object = {extend: goog.object.extend};
+exports.typeOf = goog.typeOf;
